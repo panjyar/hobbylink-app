@@ -19,8 +19,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/api', userRoutes);
+app.get('/api', (req, res) => {
+  res.json({ success: true, message: 'API is running' });
+});
+
 
 // Health check
 app.get('/health', (req, res) => {
