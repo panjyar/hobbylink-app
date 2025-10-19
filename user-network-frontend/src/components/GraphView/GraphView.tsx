@@ -14,6 +14,7 @@ import 'reactflow/dist/style.css';
 import { useApp } from '../../context/AppContext';
 import { HighScoreNode } from './HighScoreNode';
 import { LowScoreNode } from './LowScoreNode';
+import { ConnectionInstructions, EmptyStateOverlay } from './ImprovedNodes';
 
 const nodeTypes = {
   highScore: HighScoreNode,
@@ -25,6 +26,22 @@ export function GraphView() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [connectStart, setConnectStart] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [hasSeenInstructions, setHasSeenInstructions] = useState(false);
+
+  // Check if there are users without friends
+  const hasDisconnectedUsers = state.users.some(user => !user.friends || user.friends.length === 0);
+  const hasNoConnections = edges.length === 0 && state.users.length > 1;
+
+  useEffect(() => {
+    // Show instructions automatically if users have no connections
+    if (hasNoConnections && !hasSeenInstructions && state.users.length > 1) {
+      const timer = setTimeout(() => {
+        setShowInstructions(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasNoConnections, hasSeenInstructions, state.users.length]);
 
   useEffect(() => {
     if (state.users.length === 0) return;
@@ -72,6 +89,8 @@ export function GraphView() {
   const onConnect = useCallback((params: Connection) => {
     if (params.source && params.target && params.source !== params.target) {
       linkUsers(params.source, params.target);
+      setShowInstructions(false);
+      setHasSeenInstructions(true);
     }
   }, [linkUsers]);
 
@@ -82,6 +101,8 @@ export function GraphView() {
   const onNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
     if (connectStart && connectStart !== node.id) {
       linkUsers(connectStart, node.id);
+      setShowInstructions(false);
+      setHasSeenInstructions(true);
     }
     setConnectStart(null);
   }, [connectStart, linkUsers]);
@@ -89,6 +110,11 @@ export function GraphView() {
   const handleDropHobby = useCallback((event: React.DragEvent) => {
     event.preventDefault();
   }, []);
+
+  const handleDismissInstructions = () => {
+    setShowInstructions(false);
+    setHasSeenInstructions(true);
+  };
 
   if (state.loading) {
     return (
@@ -107,7 +133,12 @@ export function GraphView() {
   }
 
   return (
-    <div className="graph-container" onDrop={handleDropHobby} onDragOver={(e) => e.preventDefault()}>
+    <div 
+      className="graph-container" 
+      onDrop={handleDropHobby} 
+      onDragOver={(e) => e.preventDefault()}
+      style={{ position: 'relative' }}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -128,6 +159,54 @@ export function GraphView() {
           maskColor="rgba(0, 0, 0, 0.1)"
         />
       </ReactFlow>
+
+      {/* Show instructions overlay when needed */}
+      <ConnectionInstructions 
+        show={showInstructions} 
+        onDismiss={handleDismissInstructions}
+      />
+
+      {/* Show help button for disconnected users */}
+      {hasDisconnectedUsers && !showInstructions && (
+        <button
+          onClick={() => setShowInstructions(true)}
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            right: 20,
+            background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '50%',
+            width: 56,
+            height: 56,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(139, 92, 246, 0.4)',
+            zIndex: 10,
+            transition: 'all 0.3s ease',
+            animation: 'pulse 2s ease-in-out infinite'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          title="How to connect users"
+        >
+          <span style={{ fontSize: '1.5rem' }}>?</span>
+        </button>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 4px 12px rgba(20, 131, 66, 0.4); }
+          50% { box-shadow: 0 4px 24px rgba(139, 92, 246, 0.6); }
+        }
+      `}</style>
     </div>
   );
 }
